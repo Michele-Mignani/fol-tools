@@ -33,11 +33,16 @@ first-order logic over an unspecified domain.  It means:
 * A zero-arity relation is encoded as a ``Const`` of sort ``Bool``
   (a propositional atom).
 
-Equality
---------
-The built-in equality ``'='`` is mapped directly to Z3's native ``==``
-operator.  The :class:`FOLZ3Encoder` handles this case specially inside
-``_encode_relation``.
+Equality and comparison predicates
+------------------------------------
+``'='`` appears in the signature as a regular arity-2 relation but is
+mapped to Z3's native ``==`` operator by the encoder (this gives
+reflexivity, symmetry, transitivity, and congruence for free).
+
+``'<'`` and ``'>'`` are uninterpreted binary predicate symbols by default
+— the encoder creates a ``Function U × U → Bool`` for them just like any
+other relation.  To get arithmetic or total-order semantics, assert the
+relevant axioms via the *theory* parameter of :class:`~fol_tools.solver.FOLSolver`.
 
 Usage
 -----
@@ -258,9 +263,16 @@ class FOLZ3Encoder:
     def _encode_relation(self, node: RelationNode, symbols: dict):
         """Encode a relational atom.
 
-        * ``'='`` is mapped to Z3's native ``==`` over sort ``U``.
-        * A zero-arity relation returns the ``Bool``-sorted ``Const`` directly.
-        * An *n*-ary relation is applied to its encoded arguments.
+        Special cases:
+
+        * ``'='`` is mapped to Z3's native ``==`` over sort ``U``, giving
+          reflexivity, symmetry, transitivity, and congruence for free.
+        * ``'<'`` and ``'>'`` are looked up in *symbols* as regular
+          uninterpreted binary functions (created by :class:`Z3ContextBuilder`
+          because they appear in the signature).
+        * A zero-arity relation (propositional atom) returns the
+          ``Bool``-sorted ``Const`` directly without calling it.
+        * All other *n*-ary relations are applied to their encoded arguments.
 
         Raises
         ------

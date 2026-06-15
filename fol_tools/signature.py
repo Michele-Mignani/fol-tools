@@ -21,13 +21,18 @@ symbols before encoding a formula.
 
 Symbol classification rules
 ----------------------------
-* **Relation** (``Rel``): any ``RelationNode.name`` that is not the
-  built-in equality ``'='``.  Arity = ``len(RelationNode.arguments)``.
-* **Variable** (``Var``): a lowercase argument that appears *inside* the
-  scope of a quantifier that binds it.
-* **Constant** (``Const``): an uppercase argument, a digit-starting token,
-  or a *free* lowercase name (an argument not bound by any enclosing
-  quantifier).
+* **Relation** (``Rel``): any ``RelationNode.name``, including the
+  built-in equality ``'='`` and the comparison predicates ``'<'`` and
+  ``'>'``.  Arity = ``len(RelationNode.arguments)``.
+* **Variable** (``Var``): a term that matches the pattern ``[a-z][0-9]*``
+  (a single lowercase letter, optionally followed by digits — e.g. ``x``,
+  ``y``, ``x1``, ``z2``) **and** is bound by an enclosing quantifier.
+* **Constant** (``Const``): everything else, specifically:
+  - Uppercase-starting names (``John``, ``LowSurvivalRate``).
+  - Digit-starting tokens (``3``, ``42``).
+  - camelCase names with interior uppercase (``diamondMine``, ``wWE``).
+  - Multi-character all-lowercase names (``tom``, ``joey``, ``istanbul``).
+  - Single-letter lowercase names that are *free* (not bound by a quantifier).
 
 Usage
 -----
@@ -53,7 +58,15 @@ different arities in the two signatures.
 
 from __future__ import annotations
 
+import re
+
 from .ast import Node, QuantifierNode, BooleanNode, RelationNode, BoolConstNode
+
+# A term token is treated as a *variable candidate* iff it matches this pattern:
+# one lowercase ASCII letter optionally followed by one or more digits (x, y, x1, z2).
+# Everything else (multi-char lowercase, camelCase, uppercase-starting, digit-starting)
+# is classified as an individual constant.
+_VAR_PATTERN = re.compile(r'^[a-z][0-9]*$')
 
 
 class FOLSignature:
@@ -167,20 +180,16 @@ class FOLSignature:
                 self._walk(child, sig, bound)
 
         elif isinstance(node, RelationNode):
-            # '=' is built-in; do not catalogue it as a user-defined relation.
-            if node.name != '=':
-                sig['Rel'][node.name] = len(node.arguments)
+            sig['Rel'][node.name] = len(node.arguments)
 
             for arg in node.arguments:
-                if arg[0].isupper():
-                    # Uppercase → individual constant
-                    sig['Const'].add(arg)
-                elif arg[0].isdigit():
-                    # Digit-starting numeric token → constant
+                if not _VAR_PATTERN.match(arg):
+                    # Not a variable candidate (uppercase-starting, digit-starting,
+                    # camelCase, or multi-char lowercase) → individual constant
                     sig['Const'].add(arg)
                 elif arg in bound:
-                    # Lowercase and currently in scope → variable
+                    # Variable candidate ([a-z][0-9]*) in quantifier scope → variable
                     sig['Var'].add(arg)
                 else:
-                    # Lowercase but free → treat as a constant term
+                    # Variable candidate but free → treat as constant
                     sig['Const'].add(arg)

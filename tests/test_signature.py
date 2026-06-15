@@ -55,13 +55,34 @@ class TestExtract:
         assert 'x' in s['Var']
 
     def test_free_lowercase_treated_as_const(self):
-        # 'john' is not bound → goes to Const
+        # pure lowercase, not bound → goes to Const
         s = sig("Loves(x, john)")
         assert 'john' in s['Const']
 
-    def test_equality_not_in_rel(self):
+    def test_camelcase_treated_as_const(self):
+        # camelCase (interior uppercase) → Const
+        s = sig("In(diamondMine, wWE)")
+        assert 'diamondMine' in s['Const']
+        assert 'wWE' in s['Const']
+
+    def test_multichar_lowercase_treated_as_const(self):
+        # multi-char all-lowercase (tom, joey, istanbul) → Const, not Var
+        s = sig("∃x (Owns(tom, x) ∧ WildTurkey(joey))")
+        assert 'tom' in s['Const']
+        assert 'joey' in s['Const']
+        assert 'x' in s['Var']
+
+    def test_var_pattern_single_letter_with_digit(self):
+        # x1, y2 match [a-z][0-9]* → variable candidates when bound
+        s = sig("∀x1 ∀y2 Loves(x1, y2)")
+        assert 'x1' in s['Var']
+        assert 'y2' in s['Var']
+
+    def test_equality_in_rel(self):
+        # = is now treated as a predicate symbol with arity 2
         s = sig("∀x ∀y (x = y → A(x))")
-        assert '=' not in s['Rel']
+        assert '=' in s['Rel']
+        assert s['Rel']['='] == 2
 
     def test_bool_const_contributes_nothing(self):
         s = sig("∀x (A(x) ∧ ⊤)")

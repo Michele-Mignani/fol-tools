@@ -160,13 +160,19 @@ class RelationNode(Node):
     propositional atom (Boolean constant treated as a relation, e.g.
     ``Rain`` with no arguments).
 
-    Equality
-    --------
-    The parser desugars ``t₁ ≠ t₂`` into
-    ``BooleanNode('not', [RelationNode('=', [t₁, t₂])])``.
-    ``RelationNode('=', …)`` is therefore the *only* built-in relation
-    name; the encoder handles it specially by mapping it to Z3's native
-    ``==``.
+    Built-in infix predicates
+    -------------------------
+    The parser produces ``RelationNode`` for the following infix atoms:
+
+    * ``t₁ = t₂``  →  ``RelationNode('=',  [t₁, t₂])``
+    * ``t₁ ≠ t₂``  →  ``BooleanNode('not', [RelationNode('=', [t₁, t₂])])``
+    * ``t₁ < t₂``  →  ``RelationNode('<',  [t₁, t₂])``
+    * ``t₁ > t₂``  →  ``RelationNode('>',  [t₁, t₂])``
+
+    All three predicate names (``'='``, ``'<'``, ``'>'``) appear in
+    the signature's ``Rel`` dict with arity 2.  The encoder maps ``'='``
+    to Z3's native ``==`` (congruence axioms hold automatically); ``'<'``
+    and ``'>'`` are encoded as uninterpreted binary functions by default.
 
     Example
     -------

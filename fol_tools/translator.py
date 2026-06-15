@@ -187,8 +187,8 @@ class FOLTranslator:
             return expr
 
         if isinstance(node, RelationNode):
-            if node.name == '=':
-                return f"{node.arguments[0]} = {node.arguments[1]}"
+            if node.name in ('=', '<', '>') and len(node.arguments) == 2:
+                return f"{node.arguments[0]} {node.name} {node.arguments[1]}"
             if node.arguments:
                 return f"{node.name}({', '.join(node.arguments)})"
             return node.name
@@ -404,6 +404,18 @@ class FOLTranslator:
                 arg_nl = [meanings.get(a, a) for a in rel.arguments]
                 return f"{arg_nl[0]} is not equal to {arg_nl[1]}"
 
+            # ¬(t₁ < t₂) / ¬(t₁ > t₂) — no registered negative meaning
+            if (
+                op == 'not'
+                and isinstance(node.children[0], RelationNode)
+                and node.children[0].name in ('<', '>')
+                and node.children[0].name not in negative_meanings
+            ):
+                rel = node.children[0]
+                sym = 'less than' if rel.name == '<' else 'greater than'
+                arg_nl = [meanings.get(a, a) for a in rel.arguments]
+                return f"{arg_nl[0]} is not {sym} {arg_nl[1]}"
+
             # ¬R(…) with a registered negative meaning for R
             if (
                 op == 'not'
@@ -469,9 +481,16 @@ class FOLTranslator:
 
         # --- Relation ---
         if isinstance(node, RelationNode):
-            if node.name == '=' and '=' not in meanings:
+            # Built-in infix predicates with no user-provided meaning
+            if node.name == '=' and '=' not in meanings and len(node.arguments) == 2:
                 arg_nl = [meanings.get(a, a) for a in node.arguments]
                 return f"{arg_nl[0]} equals {arg_nl[1]}"
+            if node.name == '<' and '<' not in meanings and len(node.arguments) == 2:
+                arg_nl = [meanings.get(a, a) for a in node.arguments]
+                return f"{arg_nl[0]} is less than {arg_nl[1]}"
+            if node.name == '>' and '>' not in meanings and len(node.arguments) == 2:
+                arg_nl = [meanings.get(a, a) for a in node.arguments]
+                return f"{arg_nl[0]} is greater than {arg_nl[1]}"
 
             tmpl = meanings.get(node.name, node.name)
             if node.arguments:

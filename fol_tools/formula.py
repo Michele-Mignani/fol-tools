@@ -48,6 +48,7 @@ The parser rejects ASCII operator sequences ``->`` and ``&``.
 from __future__ import annotations
 
 from .ast import Node, QuantifierNode, BooleanNode, RelationNode, BoolConstNode
+from .signature import _VAR_PATTERN
 
 
 class FOL:
@@ -162,12 +163,17 @@ class FOL:
             return False
 
     def free_variables(self) -> set:
-        """Return the set of free (unbound) lowercase variable names.
+        """Return the set of free (unbound) variable names.
 
-        A name is considered free if it appears as a relation argument,
-        starts with a lowercase letter, is not bound by any enclosing
-        quantifier, and is not declared as a constant in the user-provided
-        signature.
+        A term is classified as a *variable candidate* iff it matches the
+        pattern ``[a-z][0-9]*`` (single lowercase letter, optionally followed
+        by digits — e.g. ``x``, ``y``, ``x1``).  Any other token is treated
+        as a constant regardless of case (``tom``, ``diamondMine``, ``John``,
+        ``42`` are all constants).
+
+        A variable candidate is *free* if it is not bound by an enclosing
+        quantifier and not listed in the user-provided signature's ``Const``
+        set.
 
         Returns
         -------
@@ -298,7 +304,7 @@ class FOL:
             return {
                 arg for arg in node.arguments
                 if (
-                    arg[0].islower()
+                    _VAR_PATTERN.match(arg)
                     and arg not in bound
                     and arg not in user_consts
                 )

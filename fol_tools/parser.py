@@ -20,6 +20,14 @@ Operators (in order of increasing precedence, lowest binds last):
     ∀∃ quantifiers            (limited scope — see below)
     () parenthesised sub-expr (highest precedence)
 
+Comparison atoms
+~~~~~~~~~~~~~~~~
+In addition to ``t₁ = t₂`` and ``t₁ ≠ t₂``, the infix atoms
+``t₁ < t₂`` and ``t₁ > t₂`` are accepted and produce
+``RelationNode('<', [t₁, t₂])`` and ``RelationNode('>', [t₁, t₂])``
+respectively.  These are treated as ordinary binary predicate symbols
+in the signature (no built-in Z3 interpretation).
+
 Quantifier scope
 ~~~~~~~~~~~~~~~~
 Quantifiers bind with *limited scope*: they apply only to the smallest
@@ -96,7 +104,8 @@ class FOLParser:
 
     # Single-character Unicode tokens.  Everything else is an identifier
     # (alphanumeric / underscore / hyphen) or a numeric literal.
-    _OPERATORS: frozenset[str] = frozenset('∀∃¬∧∨→↔⊕()=≠⊤⊥')
+    # '<' and '>' are infix comparison atoms (→ RelationNode).
+    _OPERATORS: frozenset[str] = frozenset('∀∃¬∧∨→↔⊕()=≠⊤⊥<>')
 
     # Mapping from surface token to bool value for Boolean constants.
     _BOOL_CONSTS: dict[str, bool] = {'True': True, 'False': False, '⊤': True, '⊥': False}
@@ -390,6 +399,17 @@ class FOLParser:
                     )
                 self._consume()
                 return BooleanNode('not', [RelationNode('=', [name, rhs])])
+
+            # Infix comparison: term '<' term  /  term '>' term
+            if self._current() in ('<', '>'):
+                op = self._consume()
+                rhs = self._current()
+                if not rhs or not (rhs[0].isalpha() or rhs[0] == '_' or rhs[0].isdigit()):
+                    raise ValueError(
+                        f"Expected a term after {op!r}, got {rhs!r}"
+                    )
+                self._consume()
+                return RelationNode(op, [name, rhs])
 
             # Lowercase / underscore token that is NOT followed by '=' is invalid
             # (variables may only appear as *arguments* to a relation, not standalone)

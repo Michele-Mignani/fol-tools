@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "fol_tools"
+version = "0.1.0"
+description = "Parse, encode, reason about and translate First-Order Logic formulas"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "z3-solver>=4.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fol_tools*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

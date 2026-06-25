@@ -217,9 +217,19 @@ class TestErrors:
         with pytest.raises(ValueError, match="Unexpected character"):
             parse("∀x A@(x)")
 
-    def test_lowercase_relation_name(self):
+    def test_lowercase_relation_name_standalone(self):
+        # standalone lowercase token without '(' is invalid
         with pytest.raises(ValueError):
-            parse("∀x human(x)")
+            parse("human")
+
+    def test_lowercase_predicate_with_parens_is_valid(self):
+        # lowercase-starting token followed by '(' is accepted as a predicate
+        node = parse("∀x human(x)")
+        assert node is not None
+
+    def test_camelcase_predicate_is_valid(self):
+        node = parse("∀x isDigitalMedia(x)")
+        assert node is not None
 
     def test_uppercase_quantifier_variable(self):
         with pytest.raises(ValueError):

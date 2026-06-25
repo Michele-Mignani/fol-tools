@@ -46,6 +46,8 @@ To add a new node kind:
 
 from __future__ import annotations
 
+from .exceptions import FOLSyntaxError
+
 
 class Node:
     """Abstract base class for all AST nodes.
@@ -83,7 +85,7 @@ class QuantifierNode(Node):
 
     def __init__(self, quantifier: str, variable: str, body: Node) -> None:
         if quantifier not in ('forall', 'exists'):
-            raise ValueError(
+            raise FOLSyntaxError(
                 f"quantifier must be 'forall' or 'exists', got {quantifier!r}"
             )
         self.quantifier: str = quantifier
@@ -130,7 +132,7 @@ class BooleanNode(Node):
 
     def __init__(self, operator: str, children: list[Node]) -> None:
         if operator not in self._VALID_OPERATORS:
-            raise ValueError(
+            raise FOLSyntaxError(
                 f"operator must be one of {sorted(self._VALID_OPERATORS)}, "
                 f"got {operator!r}"
             )

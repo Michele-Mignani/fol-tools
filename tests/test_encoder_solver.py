@@ -20,6 +20,7 @@ from fol_tools.parser import FOLParser
 from fol_tools.signature import FOLSignature
 from fol_tools.encoder import Z3ContextBuilder, FOLZ3Encoder
 from fol_tools.solver import FOLSolver, SolverTimeoutError
+from fol_tools.exceptions import FOLSyntaxError, FOLEncoderError, FOLSignatureError, FormulaParseError
 from fol_tools.formula import FOL
 
 
@@ -245,3 +246,133 @@ class TestSolverTimeoutError:
     def test_importable(self):
         from fol_tools.solver import SolverTimeoutError
         assert issubclass(SolverTimeoutError, Exception)
+
+
+# ------------------------------------------------------------------
+# FormulaParseError — raised on unparseable / invalid FOL strings
+# ------------------------------------------------------------------
+
+class TestFormulaParseError:
+    """FOLSolver methods must raise FOLSyntaxError (not return False)
+    when a formula cannot be parsed, and SolverTimeoutError when Z3
+    exceeds the timeout.  This verifies callers can distinguish
+    parse failures, timeouts, and genuine non-entailment."""
+
+    def test_formula_parse_error_is_value_error(self):
+        assert issubclass(FormulaParseError, ValueError)
+
+    def test_formula_parse_error_importable_from_package(self):
+        from fol_tools import FormulaParseError as FPE
+        assert FPE is FormulaParseError
+
+    # -- implies: parse error via bad theory string --
+
+    def test_implies_raises_parse_error_on_bad_theory(self):
+        solver = FOLSolver()
+        f = FOL("∀x Human(x)")
+        # ASCII operator in theory string triggers parse error
+        with pytest.raises(FOLSyntaxError):
+            solver.implies(f, f, theory=["∀x (A(x) & B(x))"])
+
+    def test_are_equivalent_raises_parse_error_on_bad_theory(self):
+        solver = FOLSolver()
+        f = FOL("∀x Human(x)")
+        with pytest.raises(FOLSyntaxError):
+            solver.are_equivalent(f, f, theory=["A(x) -> B(x)"])
+
+    def test_is_satisfiable_raises_parse_error_on_bad_theory(self):
+        solver = FOLSolver()
+        f = FOL("∀x Human(x)")
+        with pytest.raises(FOLSyntaxError):
+            solver.is_satisfiable(f, theory=["A(x) & B(x)"])
+
+    def test_implies_does_not_swallow_parse_errors(self):
+        # Confirm that a bad theory string propagates rather than silently
+        # returning False (the old behaviour).
+        solver = FOLSolver()
+        f = FOL("∀x Human(x)")
+        raised = False
+        try:
+            solver.implies(f, f, theory=["∀x (A(x) -> B(x))"])
+        except FOLSyntaxError:
+            raised = True
+        assert raised, "FOLSyntaxError was swallowed — got False instead"
+
+    # -- unbalanced parentheses in theory strings --
+    # These cannot be caught at FOL() construction time (FOL defers to
+    # validate()), but are re-parsed inside the solver and must raise
+    # FOLSyntaxError — never return False.
+
+    @pytest.mark.parametrize("bad", [
+        "∀x (Human(x)",      # missing outer closing paren
+        "Human(x",            # missing argument-list closing paren
+        "∀x Human(x))",      # extra closing paren
+    ])
+    def test_implies_raises_on_unbalanced_parens_in_theory(self, bad):
+        solver = FOLSolver()
+        f = FOL("∀x Human(x)")
+        with pytest.raises(FOLSyntaxError):
+            solver.implies(f, f, theory=[bad])
+
+    @pytest.mark.parametrize("bad", [
+        "∀x (Human(x)",
+        "Human(x",
+        "∀x Human(x))",
+    ])
+    def test_are_equivalent_raises_on_unbalanced_parens_in_theory(self, bad):
+        solver = FOLSolver()
+        f = FOL("∀x Human(x)")
+        with pytest.raises(FOLSyntaxError):
+            solver.are_equivalent(f, f, theory=[bad])
+
+    @pytest.mark.parametrize("bad", [
+        "∀x (Human(x)",
+        "Human(x",
+        "∀x Human(x))",
+    ])
+    def test_is_satisfiable_raises_on_unbalanced_parens_in_theory(self, bad):
+        solver = FOLSolver()
+        f = FOL("∀x Human(x)")
+        with pytest.raises(FOLSyntaxError):
+            solver.is_satisfiable(f, theory=[bad])
+
+    # -- timeout --
+    # We mock FOLSolver._check to return z3.unknown, which is what Z3 emits
+    # when it exceeds the timeout.  This makes the tests deterministic and
+    # independent of machine speed or Z3 internal caching.
+
+    def _make_unknown_solver(self):
+        """Return a FOLSolver whose _check always returns z3.unknown."""
+        from unittest.mock import patch
+        import z3 as _z3
+        solver = FOLSolver()
+        # Patch the _check method to simulate a timeout response
+        solver._check = lambda s, t: (_ for _ in ()).throw(
+            SolverTimeoutError("mocked timeout")
+        )
+        return solver
+
+    def test_implies_raises_timeout(self):
+        from unittest.mock import patch
+        import z3 as _z3
+        f = FOL("∀x Human(x)")
+        solver = FOLSolver()
+        with patch.object(solver, "_check", side_effect=SolverTimeoutError("mocked")):
+            with pytest.raises(SolverTimeoutError):
+                solver.implies(f, f)
+
+    def test_are_equivalent_raises_timeout(self):
+        from unittest.mock import patch
+        f = FOL("∀x Human(x)")
+        solver = FOLSolver()
+        with patch.object(solver, "_check", side_effect=SolverTimeoutError("mocked")):
+            with pytest.raises(SolverTimeoutError):
+                solver.are_equivalent(f, f)
+
+    def test_is_satisfiable_raises_timeout(self):
+        from unittest.mock import patch
+        f = FOL("∀x Human(x)")
+        solver = FOLSolver()
+        with patch.object(solver, "_check", side_effect=SolverTimeoutError("mocked")):
+            with pytest.raises(SolverTimeoutError):
+                solver.is_satisfiable(f)

@@ -57,17 +57,8 @@ from __future__ import annotations
 from z3 import And, ForAll, Implies, Not, Solver, sat, unsat
 
 from .encoder import FOLZ3Encoder, Z3ContextBuilder
+from .exceptions import FOLSyntaxError, SolverTimeoutError, FormulaParseError  # noqa: F401
 from .signature import FOLSignature
-
-
-class SolverTimeoutError(Exception):
-    """Raised when a Z3 solver call exceeds the specified timeout.
-
-    Attributes
-    ----------
-    message : str
-        Human-readable description including the timeout duration.
-    """
 
 
 class FOLSolver:
@@ -120,44 +111,38 @@ class FOLSolver:
         Returns
         -------
         bool
-            ``True`` if satisfiable, ``False`` if unsatisfiable or
-            malformed (parse/encode errors are silently caught and mapped
-            to ``False``).
+            ``True`` if satisfiable, ``False`` if unsatisfiable.
 
         Raises
         ------
+        ValueError
+            On parse or encoding errors (malformed formula or theory).
         SolverTimeoutError
             If Z3 returns ``unknown`` (typically due to timeout).
         """
-        try:
-            sig = formula.signature
-            if theory:
-                sig = self._merge_theory_signature(sig, theory)
+        sig = formula.signature
+        if theory:
+            sig = self._merge_theory_signature(sig, theory)
 
-            ctx = Z3ContextBuilder(sig)
-            symbols = ctx.build_symbols()
-            encoder = FOLZ3Encoder(sort=ctx.sort)
+        ctx = Z3ContextBuilder(sig)
+        symbols = ctx.build_symbols()
+        encoder = FOLZ3Encoder(sort=ctx.sort)
 
-            s = Solver()
-            t = self._resolve_timeout(timeout)
-            if t is not None:
-                s.set('timeout', t)
+        s = Solver()
+        t = self._resolve_timeout(timeout)
+        if t is not None:
+            s.set('timeout', t)
 
-            theory_trees = self._parse_theory_trees(theory or [])
-            if self._uses_equality(formula.tree, *theory_trees):
-                self._add_equality_axioms(s, ctx.sort)
+        theory_trees = self._parse_theory_trees(theory or [])
+        if self._uses_equality(formula.tree, *theory_trees):
+            self._add_equality_axioms(s, ctx.sort)
 
-            for z3_ax in self._encode_theory(theory or [], symbols, encoder):
-                s.add(z3_ax)
+        for z3_ax in self._encode_theory(theory or [], symbols, encoder):
+            s.add(z3_ax)
 
-            s.add(encoder.encode(formula.tree, symbols))
+        s.add(encoder.encode(formula.tree, symbols))
 
-            return self._check(s, t)
-
-        except SolverTimeoutError:
-            raise
-        except Exception:
-            return False
+        return self._check(s, t)
 
     def are_equivalent(
         self,
@@ -183,10 +168,12 @@ class FOLSolver:
         Returns
         -------
         bool
-            ``True`` iff equivalent.  ``False`` on parse/encode errors.
+            ``True`` iff equivalent.
 
         Raises
         ------
+        FormulaParseError
+            If a formula or theory string cannot be parsed or encoded.
         SolverTimeoutError
             If Z3 returns ``unknown``.
         """
@@ -221,8 +208,8 @@ class FOLSolver:
 
         except SolverTimeoutError:
             raise
-        except Exception:
-            return False
+        except ValueError as exc:
+            raise FOLSyntaxError(str(exc)) from exc
 
     def implies(
         self,
@@ -248,10 +235,12 @@ class FOLSolver:
         Returns
         -------
         bool
-            ``True`` iff *f1* ⊨ *f2*.  ``False`` on errors.
+            ``True`` iff *f1* ⊨ *f2*.
 
         Raises
         ------
+        FormulaParseError
+            If a formula or theory string cannot be parsed or encoded.
         SolverTimeoutError
             If Z3 returns ``unknown``.
         """
@@ -286,8 +275,8 @@ class FOLSolver:
 
         except SolverTimeoutError:
             raise
-        except Exception:
-            return False
+        except ValueError as exc:
+            raise FOLSyntaxError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # Internal helpers — solver execution

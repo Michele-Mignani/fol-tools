@@ -88,6 +88,7 @@ from z3 import (
 )
 
 from .ast import Node, QuantifierNode, BooleanNode, RelationNode, BoolConstNode
+from .exceptions import FOLEncoderError
 
 
 class Z3ContextBuilder:
@@ -207,7 +208,7 @@ class FOLZ3Encoder:
             return self._encode_boolean(node, symbols)
         if isinstance(node, RelationNode):
             return self._encode_relation(node, symbols)
-        raise ValueError(f"Unknown AST node type: {type(node).__name__}")
+        raise FOLEncoderError(f"Unknown AST node type: {type(node).__name__}")
 
     # ------------------------------------------------------------------
     # Node-specific encoding helpers
@@ -258,7 +259,7 @@ class FOLZ3Encoder:
             return children[0] == children[1]
         if op == 'xor':
             return Xor(children[0], children[1])
-        raise ValueError(f"Unknown boolean operator: {op!r}")
+        raise FOLEncoderError(f"Unknown boolean operator: {op!r}")
 
     def _encode_relation(self, node: RelationNode, symbols: dict):
         """Encode a relational atom.

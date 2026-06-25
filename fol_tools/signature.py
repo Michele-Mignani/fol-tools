@@ -61,6 +61,7 @@ from __future__ import annotations
 import re
 
 from .ast import Node, QuantifierNode, BooleanNode, RelationNode, BoolConstNode
+from .exceptions import FOLSignatureError
 
 # A term token is treated as a *variable candidate* iff it matches this pattern:
 # one lowercase ASCII letter optionally followed by one or more digits (x, y, x1, z2).

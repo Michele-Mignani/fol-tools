@@ -569,6 +569,10 @@ class TestValidateOnRealFormulas:
         # FOLIO-style lowercase constants — multi-char lowercase names (tom, joey,
         # istanbul, threshold) and camelCase names (diamondMine, wWE, databaseCourse)
         # are all treated as constants by the [a-z][0-9]* variable pattern rule.
+        # Lowercase-starting predicates followed by '(' are also valid.
+        "∀x human(x)",
+        "∀x isDigitalMedia(x)",
+        "∀x (isStreamingService(x) → ¬isPhysicalMedia(x))",
         "ProfessionalWrestlingStable(diamondMine) ∧ In(diamondMine, wWE)",
         "∃x (Owns(tom, x) ∧ VehicleRegistrationPlateIn(x, istanbul))",
         "WildTurkey(joey)",
@@ -582,7 +586,6 @@ class TestValidateOnRealFormulas:
         "∀x (A(x) -> B(x))",        # forbidden ASCII ->
         "∀x (A(x) & B(x))",         # forbidden ASCII &
         "Student(x) ∧ Human(x)",     # free variable x
-        "∀x human(x)",               # lowercase relation name (parse error)
     ])
     def test_invalid_formulas(self, formula):
         assert FOL(formula).validate() is False

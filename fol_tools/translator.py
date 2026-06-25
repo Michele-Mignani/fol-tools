@@ -60,6 +60,7 @@ instead of the generic "it is not the case that …".
 from __future__ import annotations
 
 from .ast import Node, QuantifierNode, BooleanNode, RelationNode, BoolConstNode
+from .exceptions import FOLEncoderError
 
 # ------------------------------------------------------------------
 # Default NL rule templates
@@ -193,7 +194,7 @@ class FOLTranslator:
                 return f"{node.name}({', '.join(node.arguments)})"
             return node.name
 
-        raise ValueError(f"Unknown node type: {type(node).__name__}")
+        raise FOLEncoderError(f"Unknown node type: {type(node).__name__}")
 
     # ------------------------------------------------------------------
     # to_tree_string — prefix tree notation
@@ -238,7 +239,7 @@ class FOLTranslator:
                 return f"{node.name}({', '.join(node.arguments)})"
             return node.name
 
-        raise ValueError(f"Unknown node type: {type(node).__name__}")
+        raise FOLEncoderError(f"Unknown node type: {type(node).__name__}")
 
     # ------------------------------------------------------------------
     # to_nl — rule-based natural-language generation
@@ -501,4 +502,4 @@ class FOLTranslator:
                     return f"{tmpl}({', '.join(arg_nl)})"
             return tmpl
 
-        raise ValueError(f"Unknown node type: {type(node).__name__}")
+        raise FOLEncoderError(f"Unknown node type: {type(node).__name__}")

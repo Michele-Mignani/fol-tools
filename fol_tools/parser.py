@@ -44,11 +44,21 @@ This matches the scoping used in the FOLIO and MALLS datasets.
 
 Relation atoms
 ~~~~~~~~~~~~~~
-A **relation** is an uppercase-initial identifier, optionally followed by
-a parenthesised argument list.  A zero-argument relation is a propositional
-atom.
+A **relation** (predicate) is any identifier — uppercase-initial *or*
+lowercase-initial — that is immediately followed by a parenthesised
+argument list.  A zero-arity propositional atom must still be
+uppercase-initial (no parentheses).
 
 A **term** is any identifier (upper- or lower-case) or a numeric token.
+
+Variable vs. constant discrimination
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A token that appears as a relation *argument* (inside argument lists) is:
+
+* a **variable** if it matches ``[a-z][0-9]*`` (single lowercase letter
+  optionally followed by digits, e.g. ``x``, ``y``, ``x1``).
+* a **constant** otherwise (multi-char lowercase like ``tom``, camelCase
+  like ``isDigitalMedia``, uppercase-initial like ``John``, numeric, …).
 
 Equality / inequality
 ~~~~~~~~~~~~~~~~~~~~~
@@ -80,7 +90,17 @@ To add a new operator at precedence level *k*:
 
 from __future__ import annotations
 
+import re
+
 from .ast import Node, QuantifierNode, BooleanNode, RelationNode, BoolConstNode
+from .exceptions import FOLSyntaxError
+
+_VAR_RE = re.compile(r'^[a-z][0-9]*$')
+
+
+def _is_variable(token: str) -> bool:
+    """Return True iff *token* is a valid variable name: [a-z][0-9]*."""
+    return bool(_VAR_RE.match(token))
 
 
 class FOLParser:
@@ -140,7 +160,7 @@ class FOLParser:
         """
         for seq in self._FORBIDDEN:
             if seq in formula_str:
-                raise ValueError(
+                raise FOLSyntaxError(
                     f"Forbidden operator {seq!r} in formula; "
                     "use Unicode symbols (→ instead of ->, ∧ instead of &)"
                 )
@@ -149,12 +169,12 @@ class FOLParser:
         self._pos: int = 0
 
         if not self._tokens:
-            raise ValueError("Formula string is empty")
+            raise FOLSyntaxError("Formula string is empty")
 
         result = self._parse_formula()
 
         if self._pos != len(self._tokens):
-            raise ValueError(
+            raise FOLSyntaxError(
                 f"Unexpected token {self._tokens[self._pos]!r} "
                 f"at position {self._pos} — formula was not fully consumed"
             )
@@ -221,7 +241,7 @@ class FOLParser:
                 i = j
                 continue
 
-            raise ValueError(
+            raise FOLSyntaxError(
                 f"Unexpected character {ch!r} (U+{ord(ch):04X}) in formula"
             )
         return tokens
@@ -249,12 +269,12 @@ class FOLParser:
         """
         tok = self._current()
         if expected is not None and tok != expected:
-            raise ValueError(
+            raise FOLSyntaxError(
                 f"Expected {expected!r} but got {tok!r} "
                 f"at position {self._pos}"
             )
         if tok is None:
-            raise ValueError("Unexpected end of formula")
+            raise FOLSyntaxError("Unexpected end of formula")
         self._pos += 1
         return tok
 
@@ -383,7 +403,7 @@ class FOLParser:
                 self._consume('=')
                 rhs = self._current()
                 if not rhs or not (rhs[0].isalpha() or rhs[0] == '_' or rhs[0].isdigit()):
-                    raise ValueError(
+                    raise FOLSyntaxError(
                         f"Expected a term after '=', got {rhs!r}"
                     )
                 self._consume()
@@ -394,7 +414,7 @@ class FOLParser:
                 self._consume('≠')
                 rhs = self._current()
                 if not rhs or not (rhs[0].isalpha() or rhs[0] == '_' or rhs[0].isdigit()):
-                    raise ValueError(
+                    raise FOLSyntaxError(
                         f"Expected a term after '≠', got {rhs!r}"
                     )
                 self._consume()
@@ -405,30 +425,35 @@ class FOLParser:
                 op = self._consume()
                 rhs = self._current()
                 if not rhs or not (rhs[0].isalpha() or rhs[0] == '_' or rhs[0].isdigit()):
-                    raise ValueError(
+                    raise FOLSyntaxError(
                         f"Expected a term after {op!r}, got {rhs!r}"
                     )
                 self._consume()
                 return RelationNode(op, [name, rhs])
 
-            # Lowercase / underscore token that is NOT followed by '=' is invalid
-            # (variables may only appear as *arguments* to a relation, not standalone)
+            # A lowercase/underscore-starting token is valid as a relation head
+            # only if it is immediately followed by '(' (i.e. used as a predicate).
+            # A token NOT followed by '(' is a standalone symbol: it must be a
+            # relation name (uppercase-starting) — variables and constants appear
+            # only inside argument lists, not as atomic formulae.
             if name[0].islower() or name[0] == '_':
-                raise ValueError(
-                    f"Unexpected lowercase token {name!r}: "
-                    "expected a relation name (uppercase) or 'term = term'"
-                )
+                if self._current() != '(':
+                    raise FOLSyntaxError(
+                        f"Unexpected lowercase token {name!r}: "
+                        "expected a relation name (uppercase-starting or camelCase "
+                        "predicate followed by '(') or 'term = term'"
+                    )
 
             # Numeric token standing alone is also invalid
             if name[0].isdigit():
-                raise ValueError(
+                raise FOLSyntaxError(
                     f"Unexpected numeric token {name!r}: "
                     "numeric literals may only appear as relation arguments"
                 )
 
             return self._parse_relation_body(name)
 
-        raise ValueError(
+        raise FOLSyntaxError(
             f"Unexpected token {tok!r} — "
             "expected a quantifier, '(', Boolean constant, or relation name"
         )
@@ -450,9 +475,10 @@ class FOLParser:
         quantifier = 'forall' if q_tok == '∀' else 'exists'
 
         variable = self._consume()
-        if not variable or not variable[0].isalpha() or variable[0].isupper():
-            raise ValueError(
-                f"Expected a lowercase variable name after the quantifier, "
+        if not variable or not _is_variable(variable):
+            raise FOLSyntaxError(
+                f"Expected a variable name after the quantifier "
+                f"(single lowercase letter optionally followed by digits, e.g. x, y, x1), "
                 f"got {variable!r}"
             )
 
@@ -476,7 +502,7 @@ class FOLParser:
             while self._current() != ')':
                 tok = self._current()
                 if tok is None:
-                    raise ValueError(
+                    raise FOLSyntaxError(
                         f"Unexpected end of formula inside argument list of {name!r}"
                     )
                 args.append(self._consume())

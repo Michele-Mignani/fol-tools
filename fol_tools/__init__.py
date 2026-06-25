@@ -52,7 +52,14 @@ from .formula import FOL
 from .parser import FOLParser
 from .signature import FOLSignature
 from .encoder import Z3ContextBuilder, FOLZ3Encoder
-from .solver import FOLSolver, SolverTimeoutError
+from .exceptions import (
+    SolverTimeoutError,
+    FOLSyntaxError,
+    FOLEncoderError,
+    FOLSignatureError,
+    FormulaParseError,   # backward-compat alias for FOLSyntaxError
+)
+from .solver import FOLSolver
 from .translator import FOLTranslator, DEFAULT_NL_RULES
 from .perturbations import generate_rule_based, RULE_TRANSFORMS
 from .ast import (
@@ -73,6 +80,10 @@ __all__ = [
     'FOLZ3Encoder',
     'FOLSolver',
     'SolverTimeoutError',
+    'FOLSyntaxError',
+    'FOLEncoderError',
+    'FOLSignatureError',
+    'FormulaParseError',   # backward-compat alias
     'FOLTranslator',
     'DEFAULT_NL_RULES',
     # Perturbations
